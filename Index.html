@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNG Grind & Boss Master</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --accent: #3b82f6;
+            --text: #f8fafc;
+            --common: #94a3b8;
+            --rare: #3b82f6;
+            --epic: #a855f7;
+            --legendary: #eab308;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            background: var(--panel-bg);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+        }
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #334155;
+        }
+        h2 { margin-top: 0; border-bottom: 2px solid #334155; padding-bottom: 8px; font-size: 1.3rem; }
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #475569; cursor: not-allowed; }
+        .log-box {
+            background: #090d16;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            height: 120px;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+        .item-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #334155;
+            padding: 5px;
+            border-radius: 6px;
+        }
+        .item {
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 4px;
+            background: #0f172a;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        .common { color: var(--common); }
+        .rare { color: var(--rare); }
+        .epic { color: var(--epic); }
+        .legendary { color: var(--legendary); }
+        .progress-container {
+            background: #0f172a;
+            border-radius: 6px;
+            height: 16px;
+            width: 100%;
+            border: 1px solid #334155;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: #22c55e;
+            height: 100%;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>RNG Grind & Boss Master</h1>
+        <p>Roll RNG gear, defeat bosses, craft items, and collect rare pets!</p>
+    </header>
+
+    <div class="stats-bar">
+        <div>Gold: <span id="gold">100</span></div>
+        <div>Gems: <span id="gems">10</span></div>
+        <div>Power: <span id="power">10</span></div>
+    </div>
+
+    <div class="container">
+        <!-- RNG Roller Panel -->
+        <div class="panel">
+            <h2>RNG Gear Roll</h2>
+            <p>Cost: 25 Gold</p>
+            <button onclick="rollGear()">Roll Gear</button>
+            <div id="rollResult" style="margin-top: 10px; font-weight: bold;"></div>
+            <h3>Your Inventory</h3>
+            <div class="item-list" id="inventoryList"></div>
+        </div>
+
+        <!-- Boss Fight Panel -->
+        <div class="panel">
+            <h2>Boss Arena</h2>
+            <div id="bossInfo">Current Boss: Slime King (HP: 100/100)</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="bossHealthBar"></div>
+            </div>
+            <button id="fightBtn" onclick="toggleFight()">Start Auto-Fight</button>
+            <h3>Combat Log</h3>
+            <div class="log-box" id="combatLog"></div>
+        </div>
+
+        <!-- Crafting Panel -->
+        <div class="panel">
+            <h2>Crafting Forge</h2>
+            <p>Combine Boss Essences into powerful gear modifications.</p>
+            <button onclick="craftItem()">Craft Legendary Blade (Req: 5 Essences)</button>
+            <div id="craftResult" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- Pets Panel -->
+        <div class="panel">
+            <h2>Pet Hatchery</h2>
+            <p>Cost: 5 Gems</p>
+            <button onclick="hatchPet()">Hatch Pet</button>
+            <div id="petResult" style="margin-top: 10px;"></div>
+            <h3>Active Pets</h3>
+            <div class="item-list" id="petList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let player = {
+            gold: 100,
+            gems: 10,
+            power: 10,
+            inventory: [],
+            pets: [],
+            essences: 0
+        };
+
+        let boss = {
+            name: "Slime King",
+            maxHp: 100,
+            hp: 100,
+            level: 1,
+            rewardGold: 30,
+            rewardEssence: 1
+        };
+
+        let fighting = false;
+        let fightInterval = null;
+
+        // RNG Rolling Tables
+        const gearTable = [
+            { name: "Wooden Sword", power: 2, rarity: "common", chance: 0.60 },
+            { name: "Iron Dagger", power: 5, rarity: "rare", chance: 0.25 },
+            { name: "Shadow Bow", power: 12, rarity: "epic", chance: 0.12 },
+            { name: "Excalibur Blade", power: 30, rarity: "legendary", chance: 0.03 }
+        ];
+
+        const petTable = [
+            { name: "Baby Slime", bonus: 2, rarity: "common", chance: 0.70 },
+            { name: "Fire Sprite", bonus: 6, rarity: "rare", chance: 0.20 },
+            { name: "Shadow Dragon", bonus: 15, rarity: "epic", chance: 0.08 },
+            { name: "Celestial Phoenix", bonus: 40, rarity: "legendary", chance: 0.02 }
+        ];
+
+        function updateUI() {
+            document.getElementById('gold').innerText = player.gold;
+            document.getElementById('gems').innerText = player.gems;
+            document.getElementById('power').innerText = player.power;
+            
+            // Update Inventory UI
+            const invList = document.getElementById('inventoryList');
+            invList.innerHTML = player.inventory.length === 0 ? '<div class="common">Empty inventory</div>' : '';
+            player.inventory.forEach(item => {
+                invList.innerHTML += `<div class="item ${item.rarity}"><span>${item.name}</span><span>+${item.power} Pow</span></div>`;
+            });
+
+            // Update Pets UI
+            const petList = document.getElementById('petList');
+            petList.innerHTML = player.pets.length === 0 ? '<div class="common">No pets hatched</div>' : '';
+            player.pets.forEach(pet => {
+                petList.innerHTML += `<div class="item ${pet.rarity}"><span>${pet.name}</span><span>+${pet.bonus} Pow</span></div>`;
+            });
+
+            // Update Boss UI
+            document.getElementById('bossInfo').innerText = `Current Boss: ${boss.name} (Lvl ${boss.level}) - HP: ${Math.max(0, boss.hp)}/${boss.maxHp}`;
+            let hpPercent = (boss.hp / boss.maxHp) * 100;
+            document.getElementById('bossHealthBar').style.width = `${Math.max(0, hpPercent)}%`;
+        }
+
+        function rollGear() {
+            if (player.gold < 25) {
+                document.getElementById('rollResult').innerText = "Not enough gold!";
+                return;
+            }
+            player.gold -= 25;
+            
+            let roll = Math.random();
+            let cumulative = 0;
+            let droppedItem = gearTable[0];
+
+            for (let item of gearTable) {
+                cumulative += item.chance;
+                if (roll <= cumulative) {
+                    droppedItem = item;
+                    break;
+                }
+            }
+
+            player.inventory.push({ ...droppedItem });
+            recalculatePower();
+            document.getElementById('rollResultinnerHTML = `<span class="${droppedItem.rarity}">Rolled: ${droppedItem.name} (+${droppedItem.power} Power)</span>`;
+            updateUI();
+        }
+
+        function hatchPet() {
+            if (player.gems < 5) {
+                document.getElementById('petResult').innerText = "Not enough gems!";
+                return;
+            }
+            player.gems -= 5;
+
+            let roll = Math.random();
+            let cumulative = 0;
+            let hatchedPet = petTable[0];
+
+            for (let pet of petTable) {
+                cumulative += pet.chance;
+                if (roll <= cumulative) {
+                    hatchedPet = pet;
+                    break;
+                }
+            }
+
+            player.pets.push({ ...hatchedPet });
+            recalculatePower();
+            document.getElementById('petResult').innerHTML = `<span class="${hatchedPet.rarity}">Hatched: ${hatchedPet.name} (+${hatchedPet.bonus} Power)</span>`;
+            updateUI();
+        }
+
+        function recalculatePower() {
+            let base = 10;
+            player.inventory.forEach(i => base += i.power);
+            player.pets.forEach(p => base += p.bonus);
+            player.power = base;
+        }
+
+        function toggleFight() {
+            const btn = document.getElementById('fightBtn');
+            if (!fighting) {
+                fighting = true;
+                btn.innerText = "Stop Auto-Fight";
+                btn.style.backgroundColor = "#dc2626";
+                fightInterval = setInterval(gameLoop, 1000);
+            } else {
+                stopFight();
+            }
+        }
+
+        function stopFight() {
+            fighting = false;
+            clearInterval(fightInterval);
+            const btn = document.getElementById('fightBtn');
+            btn.innerText = "Start Auto-Fight";
+            btn.style.backgroundColor = "var(--accent)";
+        }
+
+        function logMessage(msg) {
+            const logBox = document.getElementById('combatLog');
+            logBox.innerHTML += `<div>> ${msg}</div>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function gameLoop() {
+            // Deal damage to boss
+            boss.hp -= player.power;
+            logMessage(`Dealt ${player.power} dmg to ${boss.name}.`);
+
+            if (boss.hp <= 0) {
+                logMessage(`Victory! Defeated ${boss.name}! Earned ${boss.rewardGold} Gold & ${boss.rewardEssence} Essence.`);
+                player.gold += boss.rewardGold;
+                player.essences += boss.rewardEssence;
+                
+                // Scale Boss
+                boss.level++;
+                boss.maxHp = Math.floor(boss.maxHp * 1.4);
+                boss.hp = boss.maxHp;
+                boss.rewardGold = Math.floor(boss.rewardGold * 1.3);
+                
+                // 20% chance to get a gem on boss kill
+                if (Math.random() < 0.20) {
+                    player.gems += 2;
+                    logMessage(`Bonus drop: Found 2 Gems!`);
+                }
+            }
+            updateUI();
+        }
+
+        function craftItem() {
+            if (player.essences < 5) {
+                document.getElementById('craftResult').innerText = "Need 5 Boss Essences to craft!";
+                return;
+            }
+            player.essences -= 5;
+            let crafted = { name: "Forged Titan Greatsword", power: 50, rarity: "legendary" };
+            player.inventory.push(crafted);
+            recalculatePower();
+            document.getElementById('craftResult').innerHTML = `<span class="legendary">Successfully crafted ${crafted.name}!</span>`;
+            updateUI();
+        }
+
+        // Initial setup
+        updateUI();
+    </script>
+</body>
+</html>
